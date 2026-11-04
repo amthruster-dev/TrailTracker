@@ -146,19 +146,24 @@ class CompassStripView @JvmOverloads constructor(
         }
         canvas.drawPath(pointerPath, pointerPaint)
 
-        // --- DIAGNOSTIC ONLY: temporary, to isolate why label text isn't
-        // appearing. Draws a large, high-contrast label at a fixed,
-        // hardcoded position with no computed metrics at all. If this does
-        // not show up either, drawText itself is failing on this device/
-        // build; if it DOES show up, the bug is in the computed position
-        // or color logic above, not in text drawing itself. Remove once
-        // the real bug is found.
-        val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.MAGENTA
-            textSize = 60f
+        // --- DIAGNOSTIC ONLY: isolate why real labels aren't appearing
+        // even though the fixed TEST-N label works. Draw a label using the
+        // SAME computed labelBaselineY/x as the real "N" label, but in an
+        // impossible-to-miss color, plus print the raw numbers as text so
+        // we can read the actual values straight off the screenshot.
+        val debugPaint2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.CYAN
+            textSize = sp(20f)
             textAlign = Paint.Align.LEFT
             isFakeBoldText = true
         }
-        canvas.drawText("TEST-N", 10f, 60f, debugPaint)
+        canvas.drawText(
+            "w=${w.toInt()} h=${h.toInt()} baseY=${labelBaselineY.toInt()} cX=${centerX.toInt()}",
+            10f, h - dp(4f), debugPaint2
+        )
+        // Draw "N" again at the exact real position/paint but forced cyan,
+        // at a LEFT-aligned fixed x so it can't be scrolled off-screen by
+        // the heading offset.
+        canvas.drawText("N", dp(40f), labelBaselineY, debugPaint2)
     }
 }
