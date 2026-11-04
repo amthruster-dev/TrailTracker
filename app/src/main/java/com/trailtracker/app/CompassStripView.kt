@@ -145,5 +145,20 @@ class CompassStripView @JvmOverloads constructor(
             close()
         }
         canvas.drawPath(pointerPath, pointerPaint)
+
+        // --- DIAGNOSTIC ONLY: temporary, to isolate why label text isn't
+        // appearing. Draws a large, high-contrast label at a fixed,
+        // hardcoded position with no computed metrics at all. If this does
+        // not show up either, drawText itself is failing on this device/
+        // build; if it DOES show up, the bug is in the computed position
+        // or color logic above, not in text drawing itself. Remove once
+        // the real bug is found.
+        val debugPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.MAGENTA
+            textSize = 60f
+            textAlign = Paint.Align.LEFT
+            isFakeBoldText = true
+        }
+        canvas.drawText("TEST-N", 10f, 60f, debugPaint)
     }
 }
