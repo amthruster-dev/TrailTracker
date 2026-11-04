@@ -30,8 +30,11 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/TrailTracker.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: trail-tracker-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: TrailTracker-APK
+          path: app/build/outputs/apk/debug/TrailTracker.apk
