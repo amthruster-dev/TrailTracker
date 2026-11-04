@@ -22,7 +22,7 @@ To build locally, you'll need the Android SDK and JDK 17, then run:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+Proprietary — All rights reserved. See [LICENSE](LICENSE).
 
 ## Disclaimer
 
