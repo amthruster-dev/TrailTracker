@@ -24,6 +24,7 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.TilesOverlay
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
 
@@ -75,9 +76,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
-        binding.map.setTileSource(streetSource)
         binding.map.setMultiTouchControls(true)
         binding.map.controller.setZoom(16.0)
+
+        restoreMapLayer()
+        applyMapContrastForTheme()
 
         drawExistingTrail()
         drawExistingSetPoint()
@@ -86,10 +89,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         binding.btnLayerStreet.setOnClickListener {
             binding.map.setTileSource(streetSource)
+            applyMapContrastForTheme()
+            prefs.edit().putString(KEY_MAP_LAYER, LAYER_STREET).apply()
             binding.map.invalidate()
         }
         binding.btnLayerTopo.setOnClickListener {
             binding.map.setTileSource(topoSource)
+            applyMapContrastForTheme()
+            prefs.edit().putString(KEY_MAP_LAYER, LAYER_TOPO).apply()
             binding.map.invalidate()
         }
 
@@ -126,6 +133,29 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun updateCompassColors() {
         val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
         binding.compassStrip.isDarkMode = isNight
+    }
+
+    private fun restoreMapLayer() {
+        val savedLayer = prefs.getString(KEY_MAP_LAYER, LAYER_STREET)
+        if (savedLayer == LAYER_TOPO) {
+            binding.map.setTileSource(topoSource)
+        } else {
+            binding.map.setTileSource(streetSource)
+        }
+    }
+
+    /**
+     * Darkens the map tiles in night mode so the map actually matches the
+     * app's dark theme, rather than staying bright regardless of the toggle.
+     * osmdroid's built-in INVERT_COLORS filter turns bright basemap tiles
+     * into a dark, low-glare map suited to night viewing.
+     */
+    private fun applyMapContrastForTheme() {
+        val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
+        binding.map.overlayManager.getTilesOverlay().setColorFilter(
+            if (isNight) TilesOverlay.INVERT_COLORS else null
+        )
+        binding.map.invalidate()
     }
 
     private fun checkPermissionsAndStart() {
@@ -252,5 +282,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     companion object {
         private const val KEY_NIGHT_MODE = "night_mode_enabled"
+        private const val KEY_MAP_LAYER = "map_layer"
+        private const val LAYER_STREET = "street"
+        private const val LAYER_TOPO = "topo"
     }
 }
