@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.View
 
 /**
@@ -13,6 +14,10 @@ import android.view.View
  * band of cardinal/intercardinal headings centered on current device bearing,
  * with a fixed pointer in the middle marking current heading.
  * Call setHeading() on every sensor update to animate live.
+ *
+ * All sizes are derived from the device's display density (sp/dp) rather
+ * than raw pixels, so the cardinal letters stay clearly legible on every
+ * screen instead of shrinking to near-invisible on high-density phones.
  */
 class CompassStripView @JvmOverloads constructor(
     context: Context,
@@ -21,22 +26,28 @@ class CompassStripView @JvmOverloads constructor(
 
     private var heading: Float = 0f
 
+    private fun sp(value: Float) =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, value, resources.displayMetrics)
+
+    private fun dp(value: Float) =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics)
+
     private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        strokeWidth = 3f
+        strokeWidth = dp(2f)
     }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 42f
+        textSize = sp(22f)
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
     }
     private val northTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 46f
+        textSize = sp(26f)
         textAlign = Paint.Align.CENTER
         typeface = Typeface.DEFAULT_BOLD
         color = Color.parseColor("#E53935") // red N, like a real compass
     }
     private val degreeTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = 26f
+        textSize = sp(13f)
         textAlign = Paint.Align.CENTER
     }
     private val pointerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -58,20 +69,23 @@ class CompassStripView @JvmOverloads constructor(
 
     init {
         applyColors()
+        // Make sure the view actually repaints once its size is known,
+        // in case the first onDraw happens before layout settles.
+        setWillNotDraw(false)
     }
 
     private fun applyColors() {
         if (isDarkMode) {
             bgPaint.color = Color.parseColor("#1B1B1B")
-            tickPaint.color = Color.parseColor("#AAAAAA")
+            tickPaint.color = Color.parseColor("#CCCCCC")
             textPaint.color = Color.WHITE
-            degreeTextPaint.color = Color.parseColor("#CCCCCC")
-            pointerPaint.color = Color.parseColor("#4CAF50")
+            degreeTextPaint.color = Color.parseColor("#DDDDDD")
+            pointerPaint.color = Color.parseColor("#66BB6A")
         } else {
-            bgPaint.color = Color.parseColor("#F5F5F5")
-            tickPaint.color = Color.parseColor("#666666")
-            textPaint.color = Color.BLACK
-            degreeTextPaint.color = Color.parseColor("#444444")
+            bgPaint.color = Color.parseColor("#FFFFFF")
+            tickPaint.color = Color.parseColor("#555555")
+            textPaint.color = Color.parseColor("#000000")
+            degreeTextPaint.color = Color.parseColor("#333333")
             pointerPaint.color = Color.parseColor("#2E7D32")
         }
     }
@@ -85,15 +99,20 @@ class CompassStripView @JvmOverloads constructor(
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
         canvas.drawRect(0f, 0f, w, h, bgPaint)
 
         val centerX = w / 2f
         // pixels per degree — tune so ~180 degrees span the visible width
         val pxPerDeg = w / 180f
 
-        // Reserve the bottom of the strip for the pointer so it never covers labels
-        val labelBaselineY = h * 0.48f
-        val tickBottom = h * 0.78f
+        // Layout bands within the strip, top to bottom:
+        // labels sit in the upper ~55%, ticks run through the middle,
+        // the pointer owns the bottom ~20% — kept clear of all text.
+        val labelBaselineY = h * 0.42f
+        val tickTop = h * 0.50f
+        val tickBottom = h * 0.72f
+        val pointerTop = h * 0.78f
 
         // draw tick marks and labels every 15 degrees across a wide window
         var deg = -100
@@ -102,8 +121,8 @@ class CompassStripView @JvmOverloads constructor(
             val x = centerX + (deg - heading) * pxPerDeg
             if (x in -20f..(w + 20f)) {
                 val isMajor = displayDeg % 45 == 0
-                val tickHeight = if (isMajor) h * 0.22f else h * 0.12f
-                canvas.drawLine(x, tickBottom, x, tickBottom - tickHeight, tickPaint)
+                val tickTopY = if (isMajor) tickTop - (tickBottom - tickTop) * 0.6f else tickTop
+                canvas.drawLine(x, tickBottom, x, tickTopY, tickPaint)
 
                 val label = labels.find { it.first.toInt() == displayDeg }?.second
                 if (label != null) {
@@ -116,13 +135,12 @@ class CompassStripView @JvmOverloads constructor(
             deg += 15
         }
 
-        // Fixed center pointer (current heading) drawn at the very bottom edge,
-        // below the label baseline, so it never obscures N/NE/etc. text.
-        val pointerTop = h * 0.82f
+        // Fixed center pointer (current heading) drawn at the bottom of the
+        // strip, well below the label baseline, so it never obscures text.
         val pointerPath = android.graphics.Path().apply {
-            moveTo(centerX - 14f, pointerTop)
-            lineTo(centerX + 14f, pointerTop)
-            lineTo(centerX, h - 2f)
+            moveTo(centerX - dp(8f), pointerTop)
+            lineTo(centerX + dp(8f), pointerTop)
+            lineTo(centerX, h - dp(2f))
             close()
         }
         canvas.drawPath(pointerPath, pointerPaint)
