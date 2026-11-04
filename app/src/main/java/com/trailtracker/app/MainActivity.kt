@@ -1,4 +1,4 @@
-package com.murillo.trailtracker
+package com.trailtracker.app
 
 import android.Manifest
 import android.content.Intent
@@ -11,7 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
-import com.murillo.trailtracker.databinding.ActivityMainBinding
+import com.trailtracker.app.databinding.ActivityMainBinding
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint

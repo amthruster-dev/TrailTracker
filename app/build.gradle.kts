@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.murillo.trailtracker"
+    namespace = "com.trailtracker.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.murillo.trailtracker"
+        applicationId = "com.trailtracker.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

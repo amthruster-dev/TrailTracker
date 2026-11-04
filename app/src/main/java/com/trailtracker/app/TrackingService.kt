@@ -1,4 +1,4 @@
-package com.murillo.trailtracker
+package com.trailtracker.app
 
 import android.app.*
 import android.content.Intent
