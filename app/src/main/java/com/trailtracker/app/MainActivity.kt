@@ -1,13 +1,20 @@
 package com.trailtracker.app
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
@@ -18,13 +25,21 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var fusedClient: FusedLocationProviderClient
+    private lateinit var prefs: SharedPreferences
     private var currentLocation: Location? = null
     private var setPointMarker: Marker? = null
     private var trailLine: Polyline? = null
+
+    // Live compass heading via rotation vector sensor — low power, event-driven
+    private lateinit var sensorManager: SensorManager
+    private var rotationSensor: Sensor? = null
+    private val rotationMatrix = FloatArray(9)
+    private val orientationAngles = FloatArray(3)
+    private var lastDisplayedHeading = -1f
 
     // Free, no-API-key tile sources
     private val streetSource = XYTileSource(
@@ -48,12 +63,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prefs = getSharedPreferences("trail_tracker_prefs", Context.MODE_PRIVATE)
+        applySavedNightMode()
+
         Configuration.getInstance().userAgentValue = packageName
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this)
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
         binding.map.setTileSource(streetSource)
         binding.map.setMultiTouchControls(true)
@@ -61,6 +81,8 @@ class MainActivity : AppCompatActivity() {
 
         drawExistingTrail()
         drawExistingSetPoint()
+        updateCompassColors()
+        updateNightButtonLabel()
 
         binding.btnLayerStreet.setOnClickListener {
             binding.map.setTileSource(streetSource)
@@ -73,8 +95,37 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnSetPoint.setOnClickListener { setPointHere() }
         binding.btnReturn.setOnClickListener { centerOnReturnBearing() }
+        binding.btnDayNight.setOnClickListener { toggleNightMode() }
 
         checkPermissionsAndStart()
+    }
+
+    private fun applySavedNightMode() {
+        val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
+        AppCompatDelegate.setDefaultNightMode(
+            if (isNight) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+    }
+
+    private fun toggleNightMode() {
+        val isCurrentlyNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
+        val newValue = !isCurrentlyNight
+        prefs.edit().putBoolean(KEY_NIGHT_MODE, newValue).apply()
+        AppCompatDelegate.setDefaultNightMode(
+            if (newValue) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+        // Recreate so the theme (and map tile overlay, if desired) applies cleanly
+        recreate()
+    }
+
+    private fun updateNightButtonLabel() {
+        val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
+        binding.btnDayNight.text = if (isNight) "Day" else "Night"
+    }
+
+    private fun updateCompassColors() {
+        val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
+        binding.compassStrip.isDarkMode = isNight
     }
 
     private fun checkPermissionsAndStart() {
@@ -169,10 +220,37 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         binding.map.onResume()
+        rotationSensor?.let {
+            // UI-rate updates: smooth enough for a compass without draining battery
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
     }
 
     override fun onPause() {
         super.onPause()
         binding.map.onPause()
+        sensorManager.unregisterListener(this)
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+        val azimuthRad = orientationAngles[0]
+        var headingDeg = Math.toDegrees(azimuthRad.toDouble()).toFloat()
+        if (headingDeg < 0) headingDeg += 360f
+
+        // Skip near-identical updates to avoid redundant redraws
+        if (Math.abs(headingDeg - lastDisplayedHeading) < 0.5f) return
+        lastDisplayedHeading = headingDeg
+        binding.compassStrip.setHeading(headingDeg)
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // No action needed — rotation vector accuracy changes are rare and self-correcting
+    }
+
+    companion object {
+        private const val KEY_NIGHT_MODE = "night_mode_enabled"
     }
 }
