@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Outer halo -->
+    <path
+        android:fillColor="#332E7D32"
+        android:pathData="M24,24 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0" />
+    <!-- White disc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+    <!-- Person figure (head + shoulders) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M24,14 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M12,34 C12,26 17,21 24,21 C31,21 36,26 36,34 Z" />
+</vector>

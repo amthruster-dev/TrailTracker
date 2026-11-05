@@ -5,68 +5,91 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.trailtracker.app.CompassStripView
-        android:id="@+id/compassStrip"
-        android:layout_width="0dp"
-        android:layout_height="88dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
     <org.osmdroid.views.MapView
         android:id="@+id/map"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/compassStrip"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toTopOf="@id/controlsBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <com.trailtracker.app.CompassDialView
+        android:id="@+id/compassDial"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:layout_margin="12dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <LinearLayout
         android:id="@+id/controlsBar"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:padding="8dp"
-        android:weightSum="5"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <Button
-            android:id="@+id/btnLayerStreet"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Street" />
+            android:weightSum="3"
+            android:paddingBottom="4dp">
 
-        <Button
-            android:id="@+id/btnLayerTopo"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Topo" />
+            <Button
+                android:id="@+id/btnLayerStreet"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Street" />
 
-        <Button
-            android:id="@+id/btnSetPoint"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Set Point" />
+            <Button
+                android:id="@+id/btnLayerTopo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Topo" />
 
-        <Button
-            android:id="@+id/btnReturn"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Return" />
+            <Button
+                android:id="@+id/btnDayNight"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Night" />
 
-        <Button
-            android:id="@+id/btnDayNight"
-            android:layout_width="0dp"
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Night" />
+            android:weightSum="3">
+
+            <Button
+                android:id="@+id/btnSetPoint"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Set Point" />
+
+            <Button
+                android:id="@+id/btnReturn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Return" />
+
+            <Button
+                android:id="@+id/btnFollow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Stop" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

@@ -34,6 +34,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var currentLocation: Location? = null
     private var setPointMarker: Marker? = null
     private var trailLine: Polyline? = null
+    private var youAreHereMarker: Marker? = null
+    private var isFollowing = true
+    private var locationCallback: LocationCallback? = null
 
     // Live compass heading via rotation vector sensor — low power, event-driven
     private lateinit var sensorManager: SensorManager
@@ -103,8 +106,25 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.btnSetPoint.setOnClickListener { setPointHere() }
         binding.btnReturn.setOnClickListener { centerOnReturnBearing() }
         binding.btnDayNight.setOnClickListener { toggleNightMode() }
+        binding.btnFollow.setOnClickListener { toggleFollowMode() }
 
+        updateFollowButtonLabel()
         checkPermissionsAndStart()
+    }
+
+    private fun toggleFollowMode() {
+        isFollowing = !isFollowing
+        updateFollowButtonLabel()
+        if (isFollowing) {
+            // Snap back to current location immediately when resuming follow
+            currentLocation?.let {
+                binding.map.controller.animateTo(GeoPoint(it.latitude, it.longitude))
+            }
+        }
+    }
+
+    private fun updateFollowButtonLabel() {
+        binding.btnFollow.text = if (isFollowing) "Stop" else "Start"
     }
 
     private fun applySavedNightMode() {
@@ -132,7 +152,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun updateCompassColors() {
         val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
-        binding.compassStrip.isDarkMode = isNight
+        binding.compassDial.isDarkMode = isNight
     }
 
     private fun restoreMapLayer() {
@@ -193,8 +213,65 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             loc?.let {
                 currentLocation = it
                 binding.map.controller.setCenter(GeoPoint(it.latitude, it.longitude))
+                updateYouAreHereMarker(it)
             }
         }
+
+        startLiveLocationUpdates()
+    }
+
+    /**
+     * Continuous location updates so the map can follow the user live,
+     * not just center once on launch. Balanced-power priority keeps this
+     * low-drain; the map only re-centers automatically while isFollowing
+     * is true, so panning the map (after pressing Stop) isn't fought.
+     */
+    private fun startLiveLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        if (locationCallback != null) return // already running
+
+        val request = LocationRequest.Builder(
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L
+        ).setMinUpdateIntervalMillis(3_000L).build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val loc = result.lastLocation ?: return
+                currentLocation = loc
+                updateYouAreHereMarker(loc)
+                if (isFollowing) {
+                    binding.map.controller.animateTo(GeoPoint(loc.latitude, loc.longitude))
+                }
+            }
+        }
+        locationCallback = callback
+        fusedClient.requestLocationUpdates(request, callback, mainLooper)
+    }
+
+    /**
+     * Draws/updates a small "you are here" person icon at the current
+     * GPS position so there's always a clear marker for where you are
+     * on the map, distinct from the set-point marker.
+     */
+    private fun updateYouAreHereMarker(location: Location) {
+        val marker = youAreHereMarker
+        if (marker == null) {
+            val newMarker = Marker(binding.map)
+            newMarker.position = GeoPoint(location.latitude, location.longitude)
+            newMarker.title = "You are here"
+            newMarker.icon = androidx.core.content.ContextCompat.getDrawable(
+                this, R.drawable.ic_person_location
+            )
+            newMarker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            binding.map.overlays.add(newMarker)
+            youAreHereMarker = newMarker
+        } else {
+            marker.position = GeoPoint(location.latitude, location.longitude)
+        }
+        binding.map.invalidate()
     }
 
     private fun setPointHere() {
@@ -262,6 +339,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        locationCallback?.let { fusedClient.removeLocationUpdates(it) }
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
@@ -273,7 +355,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         // Skip near-identical updates to avoid redundant redraws
         if (Math.abs(headingDeg - lastDisplayedHeading) < 0.5f) return
         lastDisplayedHeading = headingDeg
-        binding.compassStrip.setHeading(headingDeg)
+        binding.compassDial.setHeading(headingDeg)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
