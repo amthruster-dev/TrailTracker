@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.btnDayNight.setOnClickListener { toggleNightMode() }
         binding.btnFollow.setOnClickListener { toggleFollowMode() }
         binding.btnStopRecording.setOnClickListener { stopRecordingManually() }
+        binding.btnDeleteWaypoint.setOnClickListener { deleteWaypoint() }
 
         updateFollowButtonLabel()
         updateRecordingStatusUi()
@@ -287,18 +288,43 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             Toast.makeText(this, "No GPS fix yet. Wait a moment and try again.", Toast.LENGTH_SHORT).show()
             return
         }
+        val wasAlreadyRecording = TrackLog.isRecording(this)
+
         SetPointManager.save(this, loc)
         drawExistingSetPoint()
 
-        // Setting a new start point begins a fresh trail recording: clear
-        // any previous trail on disk/map, then start logging from here.
-        TrackLog.clear(this)
-        trailLine?.let { binding.map.overlays.remove(it) }
-        trailLine = null
-        TrackLog.startRecording(this)
-        updateRecordingStatusUi()
+        if (wasAlreadyRecording) {
+            // Moving the waypoint mid-hike (without having returned to the
+            // old one) should NOT cut the trail: keep logging continuously
+            // from wherever the user already is, just re-target Return/
+            // auto-stop to the new point.
+            Toast.makeText(this, "Set point updated. Trail log continues.", Toast.LENGTH_SHORT).show()
+        } else {
+            // First waypoint of a fresh session: start a clean recording.
+            TrackLog.clear(this)
+            trailLine?.let { binding.map.overlays.remove(it) }
+            trailLine = null
+            TrackLog.startRecording(this)
+            updateRecordingStatusUi()
+            Toast.makeText(this, "Set point saved. Recording trail.", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-        Toast.makeText(this, "Set point saved. Recording trail.", Toast.LENGTH_SHORT).show()
+    /**
+     * Removes the current waypoint (set point) only — Return and the
+     * auto-stop-on-arrival check no longer have a target. The recorded
+     * trail log itself is left untouched so the line stays on the map.
+     */
+    private fun deleteWaypoint() {
+        if (SetPointManager.current(this) == null) {
+            Toast.makeText(this, "No set point to delete.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        SetPointManager.clear(this)
+        setPointMarker?.let { binding.map.overlays.remove(it) }
+        setPointMarker = null
+        binding.map.invalidate()
+        Toast.makeText(this, "Waypoint deleted.", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopRecordingManually() {
