@@ -107,8 +107,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.btnReturn.setOnClickListener { centerOnReturnBearing() }
         binding.btnDayNight.setOnClickListener { toggleNightMode() }
         binding.btnFollow.setOnClickListener { toggleFollowMode() }
+        binding.btnStopRecording.setOnClickListener { stopRecordingManually() }
 
         updateFollowButtonLabel()
+        updateRecordingStatusUi()
         checkPermissionsAndStart()
     }
 
@@ -245,6 +247,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 if (isFollowing) {
                     binding.map.controller.animateTo(GeoPoint(loc.latitude, loc.longitude))
                 }
+                // Trail is appended by the background TrackingService; redraw
+                // here so the on-screen line grows live while this activity
+                // is visible, and check whether we've looped back to start.
+                drawExistingTrail()
+                checkAutoStopAtSetPoint(loc)
             }
         }
         locationCallback = callback
@@ -282,7 +289,43 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
         SetPointManager.save(this, loc)
         drawExistingSetPoint()
-        Toast.makeText(this, "Set point saved.", Toast.LENGTH_SHORT).show()
+
+        // Setting a new start point begins a fresh trail recording: clear
+        // any previous trail on disk/map, then start logging from here.
+        TrackLog.clear(this)
+        trailLine?.let { binding.map.overlays.remove(it) }
+        trailLine = null
+        TrackLog.startRecording(this)
+        updateRecordingStatusUi()
+
+        Toast.makeText(this, "Set point saved. Recording trail.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun stopRecordingManually() {
+        TrackLog.stopRecording(this)
+        updateRecordingStatusUi()
+        Toast.makeText(this, "Trail recording stopped.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateRecordingStatusUi() {
+        val recording = TrackLog.isRecording(this)
+        binding.recordingStatus.text = if (recording) "Recording trail" else "Not recording"
+        binding.btnStopRecording.isEnabled = recording
+    }
+
+    /**
+     * Auto-stops recording once the user crosses back over their set point
+     * (within GPS-accuracy range), per their request to end the trail log
+     * automatically on return rather than only by manual button press.
+     */
+    private fun checkAutoStopAtSetPoint(loc: Location) {
+        if (!TrackLog.isRecording(this)) return
+        val sp = SetPointManager.current(this) ?: return
+        if (loc.distanceTo(sp) <= AUTO_STOP_RADIUS_METERS) {
+            TrackLog.stopRecording(this)
+            updateRecordingStatusUi()
+            Toast.makeText(this, "Back at set point — trail recording stopped.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun drawExistingSetPoint() {
@@ -331,6 +374,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             // UI-rate updates: smooth enough for a compass without draining battery
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
         }
+        updateRecordingStatusUi()
     }
 
     override fun onPause() {
@@ -367,5 +411,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val KEY_MAP_LAYER = "map_layer"
         private const val LAYER_STREET = "street"
         private const val LAYER_TOPO = "topo"
+        // Treat "crossed back over the start point" as within this radius,
+        // since GPS fixes rarely land on the exact same coordinate twice.
+        private const val AUTO_STOP_RADIUS_METERS = 5f
     }
 }
