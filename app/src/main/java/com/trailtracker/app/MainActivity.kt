@@ -211,6 +211,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         if (trailsOverlayOn) {
             if (trailsOverlay == null) {
                 val provider = MapTileProviderBasic(this, hikingTrailSource)
+                // Without this, tiles that finish downloading after the
+                // initial draw never trigger a redraw, so the overlay can
+                // look like it's showing nothing until the user pans/zooms.
+                provider.tileRequestCompleteHandlers.add(binding.map.tileRequestCompleteHandler)
                 val overlay = TilesOverlay(provider, this)
                 overlay.loadingBackgroundColor = android.graphics.Color.TRANSPARENT
                 trailsOverlay = overlay
