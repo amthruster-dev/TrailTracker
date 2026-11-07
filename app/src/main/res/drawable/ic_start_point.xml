@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <!-- Soft white halo for contrast against the map -->
+    <path
+        android:fillColor="#B3FFFFFF"
+        android:pathData="M20,20 m-15,0 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0" />
+    <!-- Blue X marking the start point -->
+    <path
+        android:strokeColor="#1565C0"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M12,12 L28,28" />
+    <path
+        android:strokeColor="#1565C0"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M28,12 L12,28" />
+</vector>

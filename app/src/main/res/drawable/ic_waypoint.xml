@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- White outline ring for contrast against the map -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,14 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+    <!-- Green dot marking the waypoint -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M14,14 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0" />
+</vector>

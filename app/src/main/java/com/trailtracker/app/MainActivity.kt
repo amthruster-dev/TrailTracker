@@ -395,6 +395,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val marker = Marker(binding.map)
         marker.position = GeoPoint(sp.latitude, sp.longitude)
         marker.title = "Start Point"
+        marker.icon = ContextCompat.getDrawable(this, R.drawable.ic_start_point)
+        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         marker.setOnMarkerClickListener { _, _ ->
             showStartPointNoteDialog()
             true
@@ -460,6 +462,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val marker = Marker(binding.map)
         marker.position = GeoPoint(wp.lat, wp.lon)
         marker.title = "Waypoint"
+        marker.icon = ContextCompat.getDrawable(this, R.drawable.ic_waypoint)
+        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
         marker.setOnMarkerClickListener { _, _ ->
             showWaypointDialog(wp.id)
             true
