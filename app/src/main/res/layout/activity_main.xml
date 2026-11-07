@@ -73,7 +73,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Set Point" />
+                android:text="Set Start" />
 
             <Button
                 android:id="@+id/btnReturn"
@@ -116,11 +116,11 @@
                 android:enabled="false" />
 
             <Button
-                android:id="@+id/btnDeleteWaypoint"
+                android:id="@+id/btnAddWaypoint"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Del. Point" />
+                android:text="+ Waypoint" />
 
         </LinearLayout>
 

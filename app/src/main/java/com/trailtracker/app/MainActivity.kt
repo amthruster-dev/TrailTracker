@@ -12,7 +12,10 @@ import android.hardware.SensorManager
 import android.location.Location
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
@@ -37,6 +40,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var youAreHereMarker: Marker? = null
     private var isFollowing = true
     private var locationCallback: LocationCallback? = null
+    private val waypointMarkers = mutableMapOf<Long, Marker>()
 
     // Live compass heading via rotation vector sensor — low power, event-driven
     private lateinit var sensorManager: SensorManager
@@ -87,6 +91,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         drawExistingTrail()
         drawExistingSetPoint()
+        drawExistingWaypoints()
         updateCompassColors()
         updateNightButtonLabel()
 
@@ -107,8 +112,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.btnReturn.setOnClickListener { centerOnReturnBearing() }
         binding.btnDayNight.setOnClickListener { toggleNightMode() }
         binding.btnFollow.setOnClickListener { toggleFollowMode() }
-        binding.btnStopRecording.setOnClickListener { stopRecordingManually() }
-        binding.btnDeleteWaypoint.setOnClickListener { deleteWaypoint() }
+        binding.btnStopRecording.setOnClickListener { promptEndTrail() }
+        binding.btnAddWaypoint.setOnClickListener { addWaypointHere() }
 
         updateFollowButtonLabel()
         updateRecordingStatusUi()
@@ -282,55 +287,36 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.map.invalidate()
     }
 
+    /**
+     * Sets the trail's Start Point. Once a Start Point exists it cannot be
+     * removed except by ending the trail (Save/Delete prompt) — this is
+     * intentional so the user can't accidentally lose their whole walking
+     * path with a stray tap.
+     */
     private fun setPointHere() {
+        if (SetPointManager.current(this) != null) {
+            Toast.makeText(
+                this,
+                "Start point already set. End the trail to clear it.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         val loc = currentLocation
         if (loc == null) {
             Toast.makeText(this, "No GPS fix yet. Wait a moment and try again.", Toast.LENGTH_SHORT).show()
             return
         }
-        val wasAlreadyRecording = TrackLog.isRecording(this)
 
         SetPointManager.save(this, loc)
         drawExistingSetPoint()
 
-        if (wasAlreadyRecording) {
-            // Moving the waypoint mid-hike (without having returned to the
-            // old one) should NOT cut the trail: keep logging continuously
-            // from wherever the user already is, just re-target Return/
-            // auto-stop to the new point.
-            Toast.makeText(this, "Set point updated. Trail log continues.", Toast.LENGTH_SHORT).show()
-        } else {
-            // First waypoint of a fresh session: start a clean recording.
-            TrackLog.clear(this)
-            trailLine?.let { binding.map.overlays.remove(it) }
-            trailLine = null
-            TrackLog.startRecording(this)
-            updateRecordingStatusUi()
-            Toast.makeText(this, "Set point saved. Recording trail.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Removes the current waypoint (set point) only — Return and the
-     * auto-stop-on-arrival check no longer have a target. The recorded
-     * trail log itself is left untouched so the line stays on the map.
-     */
-    private fun deleteWaypoint() {
-        if (SetPointManager.current(this) == null) {
-            Toast.makeText(this, "No set point to delete.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        SetPointManager.clear(this)
-        setPointMarker?.let { binding.map.overlays.remove(it) }
-        setPointMarker = null
-        binding.map.invalidate()
-        Toast.makeText(this, "Waypoint deleted.", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun stopRecordingManually() {
-        TrackLog.stopRecording(this)
+        TrackLog.clear(this)
+        trailLine?.let { binding.map.overlays.remove(it) }
+        trailLine = null
+        TrackLog.startRecording(this)
         updateRecordingStatusUi()
-        Toast.makeText(this, "Trail recording stopped.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Start point saved. Recording trail.", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateRecordingStatusUi() {
@@ -340,9 +326,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     /**
-     * Auto-stops recording once the user crosses back over their set point
-     * (within GPS-accuracy range), per their request to end the trail log
-     * automatically on return rather than only by manual button press.
+     * Auto-stops recording once the user crosses back over their start
+     * point (within GPS-accuracy range). This only stops the log — it does
+     * not clear anything, so the Save/Delete choice still happens when the
+     * user presses End Trail afterward.
      */
     private fun checkAutoStopAtSetPoint(loc: Location) {
         if (!TrackLog.isRecording(this)) return
@@ -350,8 +337,56 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         if (loc.distanceTo(sp) <= AUTO_STOP_RADIUS_METERS) {
             TrackLog.stopRecording(this)
             updateRecordingStatusUi()
-            Toast.makeText(this, "Back at set point — trail recording stopped.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Back at start point — trail recording stopped.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    /**
+     * Ends the trail: if there's nothing recorded yet, just stops quietly.
+     * Otherwise asks whether to Save (keep the start point, trail log, and
+     * waypoints, just stop recording) or Delete (clear everything — start
+     * point, trail log, and waypoints) this track.
+     */
+    private fun promptEndTrail() {
+        TrackLog.stopRecording(this)
+        updateRecordingStatusUi()
+
+        if (SetPointManager.current(this) == null && TrackLog.readPoints(this).isEmpty()) {
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("End trail")
+            .setMessage("Save this track, or delete it?")
+            .setPositiveButton("Save") { _, _ ->
+                Toast.makeText(this, "Trail saved.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Delete") { _, _ ->
+                deleteEntireTrack()
+            }
+            .setCancelable(true)
+            .show()
+    }
+
+    /** Clears the start point, the recorded trail log, and all waypoints. */
+    private fun deleteEntireTrack() {
+        SetPointManager.clear(this)
+        TrackLog.clear(this)
+        for (wp in WaypointManager.all(this)) {
+            WaypointManager.delete(this, wp.id)
+        }
+
+        setPointMarker?.let { binding.map.overlays.remove(it) }
+        setPointMarker = null
+        trailLine?.let { binding.map.overlays.remove(it) }
+        trailLine = null
+        for (marker in waypointMarkers.values) {
+            binding.map.overlays.remove(marker)
+        }
+        waypointMarkers.clear()
+
+        binding.map.invalidate()
+        Toast.makeText(this, "Track deleted.", Toast.LENGTH_SHORT).show()
     }
 
     private fun drawExistingSetPoint() {
@@ -359,10 +394,102 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         setPointMarker?.let { binding.map.overlays.remove(it) }
         val marker = Marker(binding.map)
         marker.position = GeoPoint(sp.latitude, sp.longitude)
-        marker.title = "Set Point"
+        marker.title = "Start Point"
+        marker.setOnMarkerClickListener { _, _ ->
+            showStartPointNoteDialog()
+            true
+        }
         binding.map.overlays.add(marker)
         setPointMarker = marker
         binding.map.invalidate()
+    }
+
+    private fun showStartPointNoteDialog() {
+        val input = EditText(this)
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        input.setText(SetPointManager.note(this))
+        input.hint = "Note for start point"
+
+        AlertDialog.Builder(this)
+            .setTitle("Start point note")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                SetPointManager.saveNote(this, input.text.toString())
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Drops a new waypoint marker at the current GPS position and asks for a note. */
+    private fun addWaypointHere() {
+        val loc = currentLocation
+        if (loc == null) {
+            Toast.makeText(this, "No GPS fix yet. Wait a moment and try again.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val input = EditText(this)
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        input.hint = "Note for this waypoint (optional)"
+
+        AlertDialog.Builder(this)
+            .setTitle("Add waypoint")
+            .setView(input)
+            .setPositiveButton("Add") { _, _ ->
+                val wp = WaypointManager.add(this, loc.latitude, loc.longitude, input.text.toString())
+                drawWaypointMarker(wp)
+                Toast.makeText(this, "Waypoint added.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun drawExistingWaypoints() {
+        for (marker in waypointMarkers.values) {
+            binding.map.overlays.remove(marker)
+        }
+        waypointMarkers.clear()
+        for (wp in WaypointManager.all(this)) {
+            drawWaypointMarker(wp)
+        }
+        binding.map.invalidate()
+    }
+
+    private fun drawWaypointMarker(wp: Waypoint) {
+        waypointMarkers[wp.id]?.let { binding.map.overlays.remove(it) }
+        val marker = Marker(binding.map)
+        marker.position = GeoPoint(wp.lat, wp.lon)
+        marker.title = "Waypoint"
+        marker.setOnMarkerClickListener { _, _ ->
+            showWaypointDialog(wp.id)
+            true
+        }
+        binding.map.overlays.add(marker)
+        waypointMarkers[wp.id] = marker
+        binding.map.invalidate()
+    }
+
+    /** Tapping a waypoint shows its note with options to edit or delete it. */
+    private fun showWaypointDialog(id: Long) {
+        val wp = WaypointManager.all(this).find { it.id == id } ?: return
+        val input = EditText(this)
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        input.setText(wp.note)
+
+        AlertDialog.Builder(this)
+            .setTitle("Waypoint note")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                WaypointManager.updateNote(this, id, input.text.toString())
+            }
+            .setNegativeButton("Delete") { _, _ ->
+                WaypointManager.delete(this, id)
+                waypointMarkers.remove(id)?.let { binding.map.overlays.remove(it) }
+                binding.map.invalidate()
+                Toast.makeText(this, "Waypoint deleted.", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
     }
 
     private fun drawExistingTrail() {
