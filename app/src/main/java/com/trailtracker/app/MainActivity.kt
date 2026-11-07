@@ -92,6 +92,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         drawExistingTrail()
         drawExistingSetPoint()
         drawExistingWaypoints()
+        centerMapOnRestore()
         updateCompassColors()
         updateNightButtonLabel()
 
@@ -161,6 +162,21 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun updateCompassColors() {
         val isNight = prefs.getBoolean(KEY_NIGHT_MODE, false)
         binding.compassDial.isDarkMode = isNight
+    }
+
+    /**
+     * After onCreate (including the recreate() from a night-mode toggle),
+     * the map starts out centered on the world default, not on the saved
+     * start point or any waypoints — which made them look like they'd
+     * vanished when they were really just off-screen. Center on the start
+     * point if there is one, otherwise the most recent GPS fix, so the
+     * map opens where the user's markers actually are.
+     */
+    private fun centerMapOnRestore() {
+        val target = SetPointManager.current(this) ?: currentLocation
+        target?.let {
+            binding.map.controller.setCenter(GeoPoint(it.latitude, it.longitude))
+        }
     }
 
     private fun restoreMapLayer() {
