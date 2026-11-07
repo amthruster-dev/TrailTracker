@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.trailtracker.app.databinding.ActivityMainBinding
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.overlay.Marker
@@ -58,6 +59,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         "OpenTopoMap", 0, 17, 256, ".png",
         arrayOf("https://a.tile.opentopomap.org/", "https://b.tile.opentopomap.org/", "https://c.tile.opentopomap.org/")
     )
+
+    // Waymarked Trails: free, OSM-based overlay of known hiking routes,
+    // drawn as transparent lines on top of whichever base layer is active.
+    private val hikingTrailSource = XYTileSource(
+        "WaymarkedHiking", 0, 16, 256, ".png",
+        arrayOf("https://tile.waymarkedtrails.org/hiking/", "https://tile-a.waymarkedtrails.org/hiking/", "https://tile-b.waymarkedtrails.org/hiking/")
+    )
+    private var trailsOverlay: TilesOverlay? = null
+    private var trailsOverlayOn = false
 
     private val permissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
@@ -115,6 +125,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         binding.btnFollow.setOnClickListener { toggleFollowMode() }
         binding.btnStopRecording.setOnClickListener { promptEndTrail() }
         binding.btnAddWaypoint.setOnClickListener { addWaypointHere() }
+        binding.btnTrails.setOnClickListener { toggleTrailsOverlay() }
+        restoreTrailsOverlay()
 
         updateFollowButtonLabel()
         updateRecordingStatusUi()
@@ -177,6 +189,44 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         target?.let {
             binding.map.controller.setCenter(GeoPoint(it.latitude, it.longitude))
         }
+    }
+
+    /**
+     * Shows/hides the Waymarked Trails hiking-route overlay — known hiking
+     * trails drawn as colored lines on top of the current base map, not
+     * anything the user has logged themselves.
+     */
+    private fun toggleTrailsOverlay() {
+        trailsOverlayOn = !trailsOverlayOn
+        prefs.edit().putBoolean(KEY_TRAILS_OVERLAY, trailsOverlayOn).apply()
+        applyTrailsOverlayState()
+    }
+
+    private fun restoreTrailsOverlay() {
+        trailsOverlayOn = prefs.getBoolean(KEY_TRAILS_OVERLAY, false)
+        applyTrailsOverlayState()
+    }
+
+    private fun applyTrailsOverlayState() {
+        if (trailsOverlayOn) {
+            if (trailsOverlay == null) {
+                val provider = MapTileProviderBasic(this, hikingTrailSource)
+                val overlay = TilesOverlay(provider, this)
+                overlay.loadingBackgroundColor = android.graphics.Color.TRANSPARENT
+                trailsOverlay = overlay
+            }
+            trailsOverlay?.let {
+                if (!binding.map.overlays.contains(it)) {
+                    // Insert right above the base map but below markers/trail line
+                    binding.map.overlays.add(0, it)
+                }
+            }
+            binding.btnTrails.text = "Hide Trails"
+        } else {
+            trailsOverlay?.let { binding.map.overlays.remove(it) }
+            binding.btnTrails.text = "Show Trails"
+        }
+        binding.map.invalidate()
     }
 
     private fun restoreMapLayer() {
@@ -584,6 +634,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val KEY_MAP_LAYER = "map_layer"
         private const val LAYER_STREET = "street"
         private const val LAYER_TOPO = "topo"
+        private const val KEY_TRAILS_OVERLAY = "trails_overlay_enabled"
         // Treat "crossed back over the start point" as within this radius,
         // since GPS fixes rarely land on the exact same coordinate twice.
         private const val AUTO_STOP_RADIUS_METERS = 5f
