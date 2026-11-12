@@ -310,14 +310,34 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
      * path with a stray tap.
      */
     private fun setPointHere() {
-        if (SetPointManager.current(this) != null) {
-            Toast.makeText(
-                this,
-                "Start point already set. End the trail to clear it.",
-                Toast.LENGTH_LONG
-            ).show()
+        val existing = SetPointManager.current(this)
+        if (existing != null) {
+            if (TrackLog.isRecording(this)) {
+                // A walk is actively being logged against this start point —
+                // don't let a stray tap silently move it mid-hike. The user
+                // has to End Trail first.
+                Toast.makeText(
+                    this,
+                    "Already recording. End the trail to set a new start point.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return
+            }
+            // Not recording — this is a leftover start point from before,
+            // so it's safe to ask whether to replace it with the current
+            // location for a new walk.
+            AlertDialog.Builder(this)
+                .setTitle("Set new start point?")
+                .setMessage("You already have a start point here. Replace it with your current location and start a new trail?")
+                .setPositiveButton("Set new start point") { _, _ -> placeNewStartPointHere() }
+                .setNegativeButton("Cancel", null)
+                .show()
             return
         }
+        placeNewStartPointHere()
+    }
+
+    private fun placeNewStartPointHere() {
         val loc = currentLocation
         if (loc == null) {
             Toast.makeText(this, "No GPS fix yet. Wait a moment and try again.", Toast.LENGTH_SHORT).show()
