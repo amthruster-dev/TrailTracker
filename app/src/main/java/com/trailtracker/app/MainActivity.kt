@@ -324,13 +324,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 return
             }
             // Not recording — this is a leftover start point from before,
-            // so it's safe to ask whether to replace it with the current
-            // location for a new walk.
+            // so it's safe to offer replacing it or removing it outright.
             AlertDialog.Builder(this)
-                .setTitle("Set new start point?")
-                .setMessage("You already have a start point here. Replace it with your current location and start a new trail?")
+                .setTitle("Start point already set")
+                .setMessage("Replace it with your current location, or remove it?")
                 .setPositiveButton("Set new start point") { _, _ -> placeNewStartPointHere() }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Remove start point") { _, _ -> removeStartPoint() }
+                .setNeutralButton("Cancel", null)
                 .show()
             return
         }
@@ -353,6 +353,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         TrackLog.startRecording(this)
         updateRecordingStatusUi()
         Toast.makeText(this, "Start point saved. Recording trail.", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Removes the start point without setting a new one, when nothing is
+     * actively recording. Leaves any already-logged trail/waypoints alone.
+     */
+    private fun removeStartPoint() {
+        SetPointManager.clear(this)
+        setPointMarker?.let { binding.map.overlays.remove(it) }
+        setPointMarker = null
+        binding.map.invalidate()
+        Toast.makeText(this, "Start point removed.", Toast.LENGTH_SHORT).show()
     }
 
     private fun updateRecordingStatusUi() {
